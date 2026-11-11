@@ -1,0 +1,59 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <MauiXamlInflator>SourceGen</MauiXamlInflator>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- NuGet Package Metadata -->
+    <PackageId>AaTurpin.Maui.MaterialIcons</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>AaTurpin</Authors>
+    <Description>Complete Google Material Icons library for .NET MAUI (all 2,235 icons across Filled, Outlined, Rounded, and Sharp styles) with one-line .UseMaterialIcons() registration.</Description>
+    <PackageTags>maui;dotnet-maui;material-icons;icons;flutter;google-fonts</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/aturpin0504/AaTurpin.Maui.MaterialIcons</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/aturpin0504/AaTurpin.Maui.MaterialIcons.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReleaseNotes>Initial 1.0.0 release with all 2,235 Google Material Icons across Filled, Outlined, Rounded, and Sharp styles, compile-time Roslyn Source Generator, and .UseMaterialIcons() registration.</PackageReleaseNotes>
+    <Copyright>Copyright (c) 2026 aturpin0504</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Fonts\MaterialIcons-Regular.codepoints" />
+    <None Remove="Fonts\MaterialIcons-Regular.ttf" />
+    <None Remove="Fonts\MaterialIconsOutlined-Regular.otf" />
+    <None Remove="Fonts\MaterialIconsRound-Regular.otf" />
+    <None Remove="Fonts\MaterialIconsSharp-Regular.otf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="Fonts\MaterialIcons-Regular.codepoints" />
+    <EmbeddedResource Include="Fonts\MaterialIcons-Regular.ttf" />
+    <EmbeddedResource Include="Fonts\MaterialIconsOutlined-Regular.otf" />
+    <EmbeddedResource Include="Fonts\MaterialIconsRound-Regular.otf" />
+    <EmbeddedResource Include="Fonts\MaterialIconsSharp-Regular.otf" />
+  </ItemGroup>
+
+  <!-- Pack README.md (for NuGet.org) and readme.txt (auto-opened by Visual Studio on install) -->
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+    <None Include="readme.txt" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AaTurpin.Maui.MaterialIcons.Generator\AaTurpin.Maui.MaterialIcons.Generator.csproj"
+		                  OutputItemType="Analyzer"
+		                  ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

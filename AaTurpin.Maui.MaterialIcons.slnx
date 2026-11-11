@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="AaTurpin.Maui.MaterialIcons.Generator/AaTurpin.Maui.MaterialIcons.Generator.csproj" />
+  <Project Path="AaTurpin.Maui.MaterialIcons/AaTurpin.Maui.MaterialIcons.csproj" />
+</Solution>
