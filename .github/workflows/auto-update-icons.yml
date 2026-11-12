@@ -1,0 +1,139 @@
+name: Auto-Update Google Material Icons
+
+on:
+  schedule:
+    # Runs every Monday at 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+
+permissions:
+  contents: write
+  id-token: write # Required for NuGet Trusted Publishing (OIDC)
+
+jobs:
+  sync-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install .NET MAUI Workload
+        run: dotnet workload install maui
+
+      - name: Download latest Google Material Icons fonts & codepoints and count icons
+        id: sync_icons
+        shell: pwsh
+        run: |
+          $fontsDir = "AaTurpin.Maui.MaterialIcons/Fonts"
+          $codepointsPath = "$fontsDir/MaterialIcons-Regular.codepoints"
+
+          # 1. Count existing icons before downloading
+          $oldCount = 0
+          if (Test-Path $codepointsPath) {
+              $oldCount = (Get-Content $codepointsPath | Where-Object { $_.Trim() -ne "" }).Count
+          }
+
+          # 2. Download the latest .codepoints and 4 font files from Google
+          $baseUrl = "https://raw.githubusercontent.com/google/material-design-icons/master/font"
+          $files = @(
+              "MaterialIcons-Regular.codepoints",
+              "MaterialIcons-Regular.ttf",
+              "MaterialIconsOutlined-Regular.otf",
+              "MaterialIconsRound-Regular.otf",
+              "MaterialIconsSharp-Regular.otf"
+          )
+          foreach ($file in $files) {
+              Write-Host "Downloading $file..."
+              Invoke-WebRequest -Uri "$baseUrl/$file" -OutFile "$fontsDir/$file"
+          }
+
+          # 3. Count the new total number of icons
+          $newCount = (Get-Content $codepointsPath | Where-Object { $_.Trim() -ne "" }).Count
+          $addedCount = $newCount - $oldCount
+          $formattedCount = "{0:N0}" -f $newCount
+
+          Write-Host "Old icon count: $oldCount"
+          Write-Host "New icon count: $newCount ($addedCount added)"
+
+          "old_count=$oldCount" >> $env:GITHUB_OUTPUT
+          "new_count=$newCount" >> $env:GITHUB_OUTPUT
+          "added_count=$addedCount" >> $env:GITHUB_OUTPUT
+          "formatted_count=$formattedCount" >> $env:GITHUB_OUTPUT
+
+      - name: Check if Google updated any fonts or codepoints
+        id: git_check
+        shell: pwsh
+        run: |
+          $status = git status --porcelain
+          if ($status) {
+              Write-Host "Changes detected!"
+              "changed=true" >> $env:GITHUB_OUTPUT
+          } else {
+              Write-Host "No upstream changes."
+              "changed=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Bump version, update icon counts, verify build, and pack
+        if: steps.git_check.outputs.changed == 'true'
+        shell: pwsh
+        run: |
+          $csprojPath = "AaTurpin.Maui.MaterialIcons/AaTurpin.Maui.MaterialIcons.csproj"
+          $newCount = "${{ steps.sync_icons.outputs.new_count }}"
+          $addedCount = [int]"${{ steps.sync_icons.outputs.added_count }}"
+          $formattedCount = "${{ steps.sync_icons.outputs.formatted_count }}"
+
+          # 1. Fetch Google's latest commit SHA & date for Release Notes
+          $upstream = Invoke-RestMethod "https://api.github.com/repos/google/material-design-icons/commits?path=font&per_page=1"
+          $sha = $upstream[0].sha.Substring(0, 7)
+          $date = $upstream[0].commit.committer.date.Substring(0, 10)
+
+          # 2. Bump Patch version and update Description & PackageReleaseNotes in .csproj
+          [xml]$xml = Get-Content $csprojPath
+          $propGroup = $xml.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1
+          $v = [version]$propGroup.Version
+          $newVersion = "$($v.Major).$($v.Minor).$($v.Build + 1)"
+          $propGroup.Version = $newVersion
+          $propGroup.Description = "Complete Google Material Icons library for .NET MAUI (all $formattedCount icons across Filled, Outlined, Rounded, and Sharp styles) with one-line .UseMaterialIcons() registration."
+
+          $diffSummary = if ($addedCount -gt 0) { "+$addedCount new icons ($formattedCount total)" } else { "$formattedCount total icons" }
+          $propGroup.PackageReleaseNotes = "Synced with google/material-design-icons@$sha ($date) — $diffSummary."
+          $xml.Save((Resolve-Path $csprojPath))
+
+          # 3. Update the icon count in README.md and readme.txt if present
+          foreach ($docFile in @("README.md", "AaTurpin.Maui.MaterialIcons/README.md", "AaTurpin.Maui.MaterialIcons/readme.txt")) {
+              if (Test-Path $docFile) {
+                  $text = Get-Content $docFile -Raw
+                  $text = [regex]::Replace($text, '\b\d{1,2},\d{3}(?=\s+(Google\s+)?Material\s+Icons|\s+icons\b)', $formattedCount)
+                  Set-Content -Path $docFile -Value $text -NoNewline
+              }
+          }
+
+          # 4. Verify the solution builds cleanly (runs the Roslyn Source Generator!)
+          dotnet build $csprojPath -c Release
+
+          # 5. Pack the NuGet package
+          dotnet pack $csprojPath -c Release --no-build -o ./artifacts
+
+          # 6. Commit and tag the updated fonts, docs & version back to GitHub
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "chore: sync Material Icons from google/material-design-icons (v$newVersion - $formattedCount icons)"
+          git tag "v$newVersion"
+          git push origin HEAD --tags
+
+      - name: Sign in to NuGet via Trusted Publishing (OIDC)
+        if: steps.git_check.outputs.changed == 'true'
+        uses: NuGet/login@v1
+        id: nuget_login
+        with:
+          user: aaturpin
+
+      - name: Publish to NuGet.org
+        if: steps.git_check.outputs.changed == 'true'
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
