@@ -23,7 +23,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Install .NET MAUI Workload
-        run: dotnet workload install maui
+        run: dotnet workload install maui-android
 
       - name: Download latest Google Material Icons fonts & codepoints and count icons
         id: sync_icons
